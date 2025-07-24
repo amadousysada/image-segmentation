@@ -3,6 +3,27 @@ from tensorflow.keras import layers, Model
 import tensorflow.keras.backend as K
 
 
+def debug_model_output_shape(model, input_shape=(224, 224, 3)):
+    """
+    Debug function to check model output shape
+    
+    Args:
+        model: Keras model to debug
+        input_shape: Input shape to test
+    
+    Returns:
+        Output shape information
+    """
+    test_input = tf.random.normal((1, *input_shape))
+    output = model(test_input, training=False)
+    
+    print(f"Input shape: {test_input.shape}")
+    print(f"Output shape: {output.shape}")
+    print(f"Expected mask shape for loss: {test_input.shape[:-1]} (without channels)")
+    
+    return output.shape
+
+
 class MeanIoUArgmax(tf.keras.metrics.MeanIoU):
     """Custom MeanIoU metric that applies argmax to predictions"""
     def update_state(self, y_true, y_pred, sample_weight=None):
@@ -27,8 +48,21 @@ def dice_loss(y_true, y_pred, smooth=1e-6):
     Returns:
         Dice loss value
     """
-    # Convert predictions to probabilities
-    y_pred = tf.nn.softmax(y_pred, axis=-1)
+    # Ensure y_pred has softmax applied
+    if y_pred.shape[-1] > 1:
+        y_pred = tf.nn.softmax(y_pred, axis=-1)
+    
+    # Resize y_true to match y_pred spatial dimensions if needed
+    pred_shape = tf.shape(y_pred)
+    true_shape = tf.shape(y_true)
+    
+    if true_shape[1] != pred_shape[1] or true_shape[2] != pred_shape[2]:
+        y_true = tf.image.resize(
+            tf.expand_dims(tf.cast(y_true, tf.float32), axis=-1),
+            [pred_shape[1], pred_shape[2]],
+            method='nearest'
+        )
+        y_true = tf.cast(tf.squeeze(y_true, axis=-1), tf.int32)
     
     # Convert ground truth to one-hot encoding
     num_classes = tf.shape(y_pred)[-1]
@@ -61,8 +95,21 @@ def focal_loss(y_true, y_pred, alpha=0.25, gamma=2.0):
     Returns:
         Focal loss value
     """
-    # Convert to probabilities
-    y_pred = tf.nn.softmax(y_pred, axis=-1)
+    # Ensure y_pred has softmax applied
+    if y_pred.shape[-1] > 1:
+        y_pred = tf.nn.softmax(y_pred, axis=-1)
+    
+    # Resize y_true to match y_pred spatial dimensions if needed
+    pred_shape = tf.shape(y_pred)
+    true_shape = tf.shape(y_true)
+    
+    if true_shape[1] != pred_shape[1] or true_shape[2] != pred_shape[2]:
+        y_true = tf.image.resize(
+            tf.expand_dims(tf.cast(y_true, tf.float32), axis=-1),
+            [pred_shape[1], pred_shape[2]],
+            method='nearest'
+        )
+        y_true = tf.cast(tf.squeeze(y_true, axis=-1), tf.int32)
     
     # Convert ground truth to one-hot encoding
     num_classes = tf.shape(y_pred)[-1]
@@ -118,8 +165,21 @@ def balanced_cross_entropy(y_true, y_pred, class_weights=None):
         # Default weights for Cityscapes (8 classes)
         class_weights = tf.constant([0.5, 2.0, 2.0, 1.0, 1.5, 3.0, 1.0, 0.1])
     
-    # Convert to probabilities
-    y_pred = tf.nn.softmax(y_pred, axis=-1)
+    # Ensure y_pred has softmax applied
+    if y_pred.shape[-1] > 1:
+        y_pred = tf.nn.softmax(y_pred, axis=-1)
+    
+    # Resize y_true to match y_pred spatial dimensions if needed
+    pred_shape = tf.shape(y_pred)
+    true_shape = tf.shape(y_true)
+    
+    if true_shape[1] != pred_shape[1] or true_shape[2] != pred_shape[2]:
+        y_true = tf.image.resize(
+            tf.expand_dims(tf.cast(y_true, tf.float32), axis=-1),
+            [pred_shape[1], pred_shape[2]],
+            method='nearest'
+        )
+        y_true = tf.cast(tf.squeeze(y_true, axis=-1), tf.int32)
     
     # Convert ground truth to one-hot
     num_classes = tf.shape(y_pred)[-1]
@@ -223,40 +283,45 @@ def vgg16_unet(input_shape=(224, 224, 3), num_classes=8, freeze_encoder=False):
         vgg16.trainable = False
     
     # Extract skip connections from VGG16
-    skip1 = vgg16.get_layer('block1_conv2').output    # 224x224, 64
-    skip2 = vgg16.get_layer('block2_conv2').output    # 112x112, 128
-    skip3 = vgg16.get_layer('block3_conv3').output    # 56x56, 256
-    skip4 = vgg16.get_layer('block4_conv3').output    # 28x28, 512
+    # Note: VGG16 applies max pooling, so sizes are:
+    skip1 = vgg16.get_layer('block1_conv2').output    # 112x112, 64 (after pool)
+    skip2 = vgg16.get_layer('block2_conv2').output    # 56x56, 128 (after pool)
+    skip3 = vgg16.get_layer('block3_conv3').output    # 28x28, 256 (after pool)
+    skip4 = vgg16.get_layer('block4_conv3').output    # 14x14, 512 (after pool)
     
     # Bottleneck (center of U-Net)
-    bottleneck = vgg16.get_layer('block5_conv3').output  # 14x14, 512
+    bottleneck = vgg16.get_layer('block5_conv3').output  # 7x7, 512 (after pool)
     x = conv_block(bottleneck, 1024)
     x = conv_block(x, 1024)
     
     # Decoder with skip connections
-    # Upsample and concatenate with skip4
-    x = layers.Conv2DTranspose(512, 2, strides=2, padding='same')(x)  # 28x28
+    # Upsample and concatenate with skip4 (7x7 -> 14x14)
+    x = layers.Conv2DTranspose(512, 2, strides=2, padding='same')(x)  # 14x14
     x = layers.Concatenate()([x, skip4])
     x = conv_block(x, 512)
-    x = conv_block(x, 512)
+    x = conv_block(x, 256)
     
-    # Upsample and concatenate with skip3
-    x = layers.Conv2DTranspose(256, 2, strides=2, padding='same')(x)  # 56x56
+    # Upsample and concatenate with skip3 (14x14 -> 28x28)
+    x = layers.Conv2DTranspose(256, 2, strides=2, padding='same')(x)  # 28x28
     x = layers.Concatenate()([x, skip3])
     x = conv_block(x, 256)
-    x = conv_block(x, 256)
+    x = conv_block(x, 128)
     
-    # Upsample and concatenate with skip2
-    x = layers.Conv2DTranspose(128, 2, strides=2, padding='same')(x)  # 112x112
+    # Upsample and concatenate with skip2 (28x28 -> 56x56)
+    x = layers.Conv2DTranspose(128, 2, strides=2, padding='same')(x)  # 56x56
     x = layers.Concatenate()([x, skip2])
     x = conv_block(x, 128)
-    x = conv_block(x, 128)
+    x = conv_block(x, 64)
     
-    # Upsample and concatenate with skip1
-    x = layers.Conv2DTranspose(64, 2, strides=2, padding='same')(x)   # 224x224
+    # Upsample and concatenate with skip1 (56x56 -> 112x112)
+    x = layers.Conv2DTranspose(64, 2, strides=2, padding='same')(x)   # 112x112
     x = layers.Concatenate()([x, skip1])
     x = conv_block(x, 64)
-    x = conv_block(x, 64)
+    x = conv_block(x, 32)
+    
+    # Final upsampling to original input size (112x112 -> 224x224)
+    x = layers.Conv2DTranspose(32, 2, strides=2, padding='same')(x)   # 224x224
+    x = conv_block(x, 32)
     
     # Final classification layer
     outputs = layers.Conv2D(num_classes, 1, activation='softmax', name='segmentation_output')(x)
