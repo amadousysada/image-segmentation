@@ -19,7 +19,30 @@ Cette erreur indique que :
 
 ## 🛠️ Solutions Implémentées
 
-### 1. Architecture VGG16-UNet Corrigée
+### 1. Architecture U-Net Mini Corrigée
+
+**Avant (problématique) :**
+```python
+# 4 downsampling + 4 upsampling + 1 upsampling final = 5 upsampling
+x1, skip1 = encoder_block(inputs, filters_base)      # 224→112
+x2, skip2 = encoder_block(x1, filters_base * 2)      # 112→56  
+x3, skip3 = encoder_block(x2, filters_base * 4)      # 56→28
+x4, skip4 = encoder_block(x3, filters_base * 8)      # 28→14
+bottleneck = conv_block(x4, filters_base * 16)       # 14→7
+# Puis 4 decoder + 1 final upsampling = 448x448 ❌
+```
+
+**Après (corrigée) :**
+```python
+# 3 downsampling + 3 upsampling = dimensions équilibrées
+x1, skip1 = encoder_block(inputs, filters_base)      # 224→112
+x2, skip2 = encoder_block(x1, filters_base * 2)      # 112→56
+x3, skip3 = encoder_block(x2, filters_base * 4)      # 56→28
+bottleneck = conv_block(x3, filters_base * 8)        # reste à 28x28
+# Puis 3 decoder steps: 28→56→112→224 ✅
+```
+
+### 2. Architecture VGG16-UNet Corrigée
 
 **Avant (problématique) :**
 ```python

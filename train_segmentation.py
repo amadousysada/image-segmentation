@@ -31,7 +31,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Train semantic segmentation models')
     
     parser.add_argument('--model', type=str, default='unet_mini',
-                       choices=['unet_mini', 'vgg16_unet', 'resnet50_unet'],
+                       choices=['unet_mini', 'unet_mini_deep', 'vgg16_unet', 'resnet50_unet'],
                        help='Model architecture to use')
     
     parser.add_argument('--loss', type=str, default='cross_entropy',

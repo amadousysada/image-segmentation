@@ -236,25 +236,22 @@ def unet_mini(input_shape=(224, 224, 3), num_classes=8, filters_base=32):
     """
     inputs = layers.Input(input_shape)
     
-    # Encoder
-    x1, skip1 = encoder_block(inputs, filters_base)      # 112x112
-    x2, skip2 = encoder_block(x1, filters_base * 2)      # 56x56
-    x3, skip3 = encoder_block(x2, filters_base * 4)      # 28x28
-    x4, skip4 = encoder_block(x3, filters_base * 8)      # 14x14
+    # Encoder (3 downsampling steps instead of 4)
+    x1, skip1 = encoder_block(inputs, filters_base)      # 224x224 → 112x112
+    x2, skip2 = encoder_block(x1, filters_base * 2)      # 112x112 → 56x56
+    x3, skip3 = encoder_block(x2, filters_base * 4)      # 56x56 → 28x28
     
-    # Bottleneck
-    bottleneck = conv_block(x4, filters_base * 16)       # 7x7
-    bottleneck = conv_block(bottleneck, filters_base * 16)
+    # Bottleneck (no more downsampling)
+    bottleneck = conv_block(x3, filters_base * 8)        # 28x28
+    bottleneck = conv_block(bottleneck, filters_base * 8)
     
-    # Decoder
-    d1 = decoder_block(bottleneck, skip4, filters_base * 8)  # 14x14
-    d2 = decoder_block(d1, skip3, filters_base * 4)          # 28x28
-    d3 = decoder_block(d2, skip2, filters_base * 2)          # 56x56
-    d4 = decoder_block(d3, skip1, filters_base)              # 112x112
+    # Decoder (3 upsampling steps to match encoder)
+    d1 = decoder_block(bottleneck, skip3, filters_base * 4)  # 28x28 → 56x56
+    d2 = decoder_block(d1, skip2, filters_base * 2)          # 56x56 → 112x112
+    d3 = decoder_block(d2, skip1, filters_base)              # 112x112 → 224x224
     
-    # Final upsampling and classification
-    d4 = layers.Conv2DTranspose(filters_base, 2, strides=2, padding='same')(d4)  # 224x224
-    outputs = layers.Conv2D(num_classes, 1, activation='softmax', name='segmentation_output')(d4)
+    # Final classification (no additional upsampling needed)
+    outputs = layers.Conv2D(num_classes, 1, activation='softmax', name='segmentation_output')(d3)
     
     model = Model(inputs, outputs, name='UNet_Mini')
     return model
@@ -402,12 +399,49 @@ def resnet50_unet(input_shape=(224, 224, 3), num_classes=8, freeze_encoder=False
 # MODEL FACTORY
 # =============================================================================
 
+def unet_mini_deep(input_shape=(224, 224, 3), num_classes=8, filters_base=32):
+    """
+    Deeper Mini U-Net model with 4 downsampling levels (alternative version)
+    
+    Args:
+        input_shape: Input image shape
+        num_classes: Number of segmentation classes
+        filters_base: Base number of filters
+    
+    Returns:
+        Keras Model
+    """
+    inputs = layers.Input(input_shape)
+    
+    # Encoder (4 downsampling steps)
+    x1, skip1 = encoder_block(inputs, filters_base)      # 224x224 → 112x112
+    x2, skip2 = encoder_block(x1, filters_base * 2)      # 112x112 → 56x56
+    x3, skip3 = encoder_block(x2, filters_base * 4)      # 56x56 → 28x28
+    x4, skip4 = encoder_block(x3, filters_base * 8)      # 28x28 → 14x14
+    
+    # Bottleneck
+    bottleneck = conv_block(x4, filters_base * 16)       # 14x14
+    bottleneck = conv_block(bottleneck, filters_base * 16)
+    
+    # Decoder (4 upsampling steps)
+    d1 = decoder_block(bottleneck, skip4, filters_base * 8)  # 14x14 → 28x28
+    d2 = decoder_block(d1, skip3, filters_base * 4)          # 28x28 → 56x56
+    d3 = decoder_block(d2, skip2, filters_base * 2)          # 56x56 → 112x112
+    d4 = decoder_block(d3, skip1, filters_base)              # 112x112 → 224x224
+    
+    # Final classification (already at correct size)
+    outputs = layers.Conv2D(num_classes, 1, activation='softmax', name='segmentation_output')(d4)
+    
+    model = Model(inputs, outputs, name='UNet_Mini_Deep')
+    return model
+
+
 def create_model(model_type='unet_mini', input_shape=(224, 224, 3), num_classes=8, **kwargs):
     """
     Factory function to create different model architectures
     
     Args:
-        model_type: Type of model ('unet_mini', 'vgg16_unet', 'resnet50_unet')
+        model_type: Type of model ('unet_mini', 'unet_mini_deep', 'vgg16_unet', 'resnet50_unet')
         input_shape: Input image shape
         num_classes: Number of segmentation classes
         **kwargs: Additional model-specific arguments
@@ -417,6 +451,8 @@ def create_model(model_type='unet_mini', input_shape=(224, 224, 3), num_classes=
     """
     if model_type == 'unet_mini':
         return unet_mini(input_shape, num_classes, **kwargs)
+    elif model_type == 'unet_mini_deep':
+        return unet_mini_deep(input_shape, num_classes, **kwargs)
     elif model_type == 'vgg16_unet':
         return vgg16_unet(input_shape, num_classes, **kwargs)
     elif model_type == 'resnet50_unet':
