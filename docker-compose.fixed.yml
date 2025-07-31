@@ -1,0 +1,30 @@
+services:
+  api:
+    build: ./api
+    env_file: ./api/.env
+    ports:
+      - 8000:8000
+    volumes:
+      # Monter le répertoire MLflow (ajustez le chemin selon votre configuration)
+      - ~/.mlflow:/root/.mlflow
+      # Monter un répertoire temporaire partagé
+      - /tmp:/tmp
+      # Monter le répertoire de données/artefacts MLflow si vous en avez un
+      - ./mlruns:/app/mlruns
+      # Optionnel: monter un cache partagé
+      - mlflow_cache:/app/.mlflow_cache
+    environment:
+      # Variables d'environnement MLflow
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-file:///app/mlruns}
+      - MLFLOW_ARTIFACT_ROOT=${MLFLOW_ARTIFACT_ROOT:-/app/mlruns}
+      # Forcer l'utilisation d'un répertoire temporaire accessible
+      - TMPDIR=/tmp
+    develop:
+      watch:
+        # Watch your main app code and restart on changes
+        - action: sync+restart
+          path: ./api/
+          target: /app/
+
+volumes:
+  mlflow_cache:
