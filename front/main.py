@@ -71,17 +71,17 @@ if uploaded_file is not None:
                 st.write(f"🎨 Mode: Couleurs RGB")
                 st.write(f"🖼️ Classes détectées: {len(np.unique(mask_array.flatten())) if len(mask_array.shape) == 3 else len(unique_values)}")
                 
-                # Légende des couleurs pour le mode couleur
+                # Légende des couleurs pour le mode couleur (correspondant au GROUP_PALETTE du notebook)
                 st.write("**Légende des couleurs:**")
                 color_legend = [
-                    "🖤 Classe 0: Noir (background)",
-                    "🔴 Classe 1: Rouge", 
-                    "🟢 Classe 2: Vert",
-                    "🔵 Classe 3: Bleu",
-                    "🟡 Classe 4: Jaune",
-                    "🟣 Classe 5: Magenta",
-                    "🩵 Classe 6: Cyan",
-                    "⚪ Classe 7: Blanc"
+                    "🟣 Classe 0: Flat (route, trottoir) - Violet-gris",
+                    "🔴 Classe 1: Human (personne, cycliste) - Rouge-crimson", 
+                    "🔵 Classe 2: Vehicle (voiture, camion) - Bleu foncé",
+                    "⚫ Classe 3: Construction (bâtiment, mur) - Gris foncé",
+                    "🟡 Classe 4: Object (poteau, panneau) - Jaune",
+                    "🟢 Classe 5: Nature (végétation, terrain) - Vert olive",
+                    "🩵 Classe 6: Sky (ciel) - Bleu ciel",
+                    "🖤 Classe 7: Void (non labellisé, hors ROI) - Noir"
                 ]
                 for legend in color_legend:
                     st.write(f"• {legend}")

@@ -93,16 +93,16 @@ def postprocess_mask_color(mask_logits: np.ndarray):
     # squeeze batch → (H, W)
     mask_indices = mask_indices[0]
     
-    # Palette de couleurs RGB distinctes pour 8 classes
+    # Palette de couleurs RGB correspondant au GROUP_PALETTE du notebook
     color_palette = np.array([
-        [0, 0, 0],       # Classe 0: Noir (background)
-        [255, 0, 0],     # Classe 1: Rouge
-        [0, 255, 0],     # Classe 2: Vert
-        [0, 0, 255],     # Classe 3: Bleu
-        [255, 255, 0],   # Classe 4: Jaune
-        [255, 0, 255],   # Classe 5: Magenta
-        [0, 255, 255],   # Classe 6: Cyan
-        [255, 255, 255]  # Classe 7: Blanc
+        [128, 64, 128],   # Classe 0: flat (route, trottoir, etc.) - Violet-gris
+        [220, 20, 60],    # Classe 1: human (personne, cycliste) - Rouge-crimson
+        [0, 0, 142],      # Classe 2: vehicle (voiture, camion, etc.) - Bleu foncé
+        [70, 70, 70],     # Classe 3: construction (bâtiment, mur, etc.) - Gris foncé
+        [220, 220, 0],    # Classe 4: object (poteau, panneau, etc.) - Jaune
+        [107, 142, 35],   # Classe 5: nature (végétation, terrain) - Vert olive
+        [70, 130, 180],   # Classe 6: sky (ciel) - Bleu ciel
+        [0, 0, 0]         # Classe 7: void (non labellisé, hors ROI) - Noir
     ], dtype=np.uint8)
     
     # Créer l'image couleur
