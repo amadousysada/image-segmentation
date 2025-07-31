@@ -13,6 +13,10 @@ st.title("Segmentation sémantique d'image")
 
 # 1. Upload d'image
 uploaded_file = st.file_uploader("Choisissez une image PNG ou JPG", type=["png", "jpg", "jpeg"])
+
+# Option pour le mode couleur
+color_mode = st.checkbox("Utiliser des couleurs pour le masque (plus facile à distinguer)", value=True)
+
 if uploaded_file is not None:
     # Affiche l'image d'entrée
     input_image = Image.open(uploaded_file).convert("RGB")
@@ -25,7 +29,8 @@ if uploaded_file is not None:
             try:
                 # On renvoie le fichier sous form-data (clé 'file' ou autre selon votre API)
                 files = {"picture": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-                resp = requests.post(f"{STREAMLIT_API_URL}/segment/", files=files, timeout=60)
+                params = {"color_mode": color_mode}
+                resp = requests.post(f"{STREAMLIT_API_URL}/segment/", files=files, params=params, timeout=60)
                 resp.raise_for_status()
                 # 3. Lecture du mask PNG retourné
                 mask_bytes = resp.content
@@ -41,15 +46,67 @@ if uploaded_file is not None:
                 st.stop()
 
         # 4. Affichage du mask en niveaux de gris
-        st.subheader("Mask prédit (classes par pixel)")
+        if color_mode:
+            st.subheader("Mask prédit (8 classes en couleurs)")
+        else:
+            st.subheader("Mask prédit (8 classes en niveaux de gris)")
         
         # Informations de débogage
         mask_array = np.array(mask_image)
-        st.write(f"Dimensions du masque: {mask_array.shape}")
-        st.write(f"Valeurs min/max du masque: {mask_array.min()}/{mask_array.max()}")
-        st.write(f"Valeurs uniques: {np.unique(mask_array)}")
+        unique_values = np.unique(mask_array)
         
-        st.image(mask_image, use_container_width=True, clamp=True, channels="L")
+        # Créer deux colonnes pour l'affichage
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            if color_mode:
+                st.image(mask_image, use_container_width=True, clamp=True)
+            else:
+                st.image(mask_image, use_container_width=True, clamp=True, channels="L")
+        
+        with col2:
+            st.write("**Informations du masque:**")
+            st.write(f"📏 Dimensions: {mask_array.shape}")
+            if color_mode:
+                st.write(f"🎨 Mode: Couleurs RGB")
+                st.write(f"🖼️ Classes détectées: {len(np.unique(mask_array.flatten())) if len(mask_array.shape) == 3 else len(unique_values)}")
+                
+                # Légende des couleurs pour le mode couleur
+                st.write("**Légende des couleurs:**")
+                color_legend = [
+                    "🖤 Classe 0: Noir (background)",
+                    "🔴 Classe 1: Rouge", 
+                    "🟢 Classe 2: Vert",
+                    "🔵 Classe 3: Bleu",
+                    "🟡 Classe 4: Jaune",
+                    "🟣 Classe 5: Magenta",
+                    "🩵 Classe 6: Cyan",
+                    "⚪ Classe 7: Blanc"
+                ]
+                for legend in color_legend:
+                    st.write(f"• {legend}")
+            else:
+                st.write(f"📊 Valeurs min/max: {mask_array.min()}/{mask_array.max()}")
+                st.write(f"🎨 Classes détectées: {len(unique_values)}")
+                
+                # Afficher la légende des couleurs pour niveaux de gris
+                st.write("**Légende des niveaux de gris:**")
+                color_legend = {
+                    0: "Noir (classe 0)",
+                    36: "Gris très foncé (classe 1)", 
+                    73: "Gris foncé (classe 2)",
+                    109: "Gris moyen-foncé (classe 3)",
+                    146: "Gris moyen (classe 4)",
+                    182: "Gris moyen-clair (classe 5)",
+                    219: "Gris clair (classe 6)",
+                    255: "Blanc (classe 7)"
+                }
+                
+                for value in unique_values:
+                    if value in color_legend:
+                        st.write(f"• {color_legend[value]}")
+                    else:
+                        st.write(f"• Valeur {value} (classe inconnue)")
 
         # 5. (Optionnel) Superposition semi-transparente
         st.subheader("Superposition")

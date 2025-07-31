@@ -53,23 +53,65 @@ def postprocess_mask(mask_logits: np.ndarray):
     # squeeze batch → (H, W)
     mask_indices = mask_indices[0]
     
-    # Normaliser les valeurs pour la visualisation
-    # Si on a N classes (0, 1, 2, ..., N-1), on les map sur [0, 255]
-    if mask_indices.max() > 0:
-        mask_normalized = (mask_indices / mask_indices.max() * 255).astype(np.uint8)
-    else:
-        mask_normalized = mask_indices.astype(np.uint8)
+    # Palette de couleurs optimisée pour 8 classes (0-7)
+    # Chaque classe aura une valeur bien distincte en niveaux de gris
+    color_map = np.array([
+        0,    # Classe 0: Noir (background généralement)
+        36,   # Classe 1: Gris très foncé
+        73,   # Classe 2: Gris foncé
+        109,  # Classe 3: Gris moyen-foncé
+        146,  # Classe 4: Gris moyen
+        182,  # Classe 5: Gris moyen-clair
+        219,  # Classe 6: Gris clair
+        255   # Classe 7: Blanc
+    ])
     
-    # Alternative: Couleurs distinctes pour chaque classe
-    # Décommentez les lignes suivantes si vous préférez des couleurs distinctes
-    # color_map = np.array([0, 85, 170, 255])  # 4 niveaux de gris bien espacés
-    # if mask_indices.max() < len(color_map):
-    #     mask_normalized = color_map[mask_indices]
-    # else:
-    #     mask_normalized = (mask_indices * 255 // mask_indices.max()).astype(np.uint8)
+    # Appliquer la palette de couleurs
+    if mask_indices.max() < len(color_map):
+        mask_normalized = color_map[mask_indices]
+    else:
+        # Fallback: normalisation linéaire si plus de 8 classes détectées
+        mask_normalized = (mask_indices / mask_indices.max() * 255).astype(np.uint8)
+    
+    # Convertir en uint8 si ce n'est pas déjà fait
+    mask_normalized = mask_normalized.astype(np.uint8)
     
     # ajout du canal → (H, W, 1)
     mask_normalized = mask_normalized[..., np.newaxis]
     # encode en PNG
     encoded = tf.io.encode_png(mask_normalized).numpy()
+    return encoded
+
+def postprocess_mask_color(mask_logits: np.ndarray):
+    """
+    Alternative en couleurs pour une meilleure visualisation des 8 classes.
+    mask_logits: np.ndarray shape (1, H, W, C)
+    Retourne les octets d'un PNG du mask (H, W, 3) en couleurs RGB.
+    """
+    # argmax → (1, H, W)
+    mask_indices = np.argmax(mask_logits, axis=-1)
+    # squeeze batch → (H, W)
+    mask_indices = mask_indices[0]
+    
+    # Palette de couleurs RGB distinctes pour 8 classes
+    color_palette = np.array([
+        [0, 0, 0],       # Classe 0: Noir (background)
+        [255, 0, 0],     # Classe 1: Rouge
+        [0, 255, 0],     # Classe 2: Vert
+        [0, 0, 255],     # Classe 3: Bleu
+        [255, 255, 0],   # Classe 4: Jaune
+        [255, 0, 255],   # Classe 5: Magenta
+        [0, 255, 255],   # Classe 6: Cyan
+        [255, 255, 255]  # Classe 7: Blanc
+    ], dtype=np.uint8)
+    
+    # Créer l'image couleur
+    h, w = mask_indices.shape
+    mask_color = np.zeros((h, w, 3), dtype=np.uint8)
+    
+    for class_id in range(min(len(color_palette), mask_indices.max() + 1)):
+        mask_color[mask_indices == class_id] = color_palette[class_id]
+    
+    # encode en PNG
+    encoded = tf.io.encode_png(mask_color).numpy()
     return encoded
