@@ -3,6 +3,7 @@ import io
 import requests
 import streamlit as st
 from PIL import Image
+import numpy as np
 
 # Config
 STREAMLIT_API_URL = os.getenv("STREAMLIT_API_URL", "http://localhost:8000").rstrip('/')
@@ -41,6 +42,13 @@ if uploaded_file is not None:
 
         # 4. Affichage du mask en niveaux de gris
         st.subheader("Mask prédit (classes par pixel)")
+        
+        # Informations de débogage
+        mask_array = np.array(mask_image)
+        st.write(f"Dimensions du masque: {mask_array.shape}")
+        st.write(f"Valeurs min/max du masque: {mask_array.min()}/{mask_array.max()}")
+        st.write(f"Valeurs uniques: {np.unique(mask_array)}")
+        
         st.image(mask_image, use_container_width=True, clamp=True, channels="L")
 
         # 5. (Optionnel) Superposition semi-transparente

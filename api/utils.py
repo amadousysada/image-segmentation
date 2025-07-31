@@ -46,16 +46,30 @@ def preprocess_image(file_bytes: bytes):
 def postprocess_mask(mask_logits: np.ndarray):
     """
     mask_logits: np.ndarray shape (1, H, W, C)
-    Retourne les octets d’un PNG du mask (H, W, 1) en uint8.
+    Retourne les octets d'un PNG du mask (H, W, 1) en uint8.
     """
     # argmax → (1, H, W)
     mask_indices = np.argmax(mask_logits, axis=-1)
     # squeeze batch → (H, W)
     mask_indices = mask_indices[0]
-    # cast en uint8 → (H, W)
-    mask_uint8 = mask_indices.astype(np.uint8)
+    
+    # Normaliser les valeurs pour la visualisation
+    # Si on a N classes (0, 1, 2, ..., N-1), on les map sur [0, 255]
+    if mask_indices.max() > 0:
+        mask_normalized = (mask_indices / mask_indices.max() * 255).astype(np.uint8)
+    else:
+        mask_normalized = mask_indices.astype(np.uint8)
+    
+    # Alternative: Couleurs distinctes pour chaque classe
+    # Décommentez les lignes suivantes si vous préférez des couleurs distinctes
+    # color_map = np.array([0, 85, 170, 255])  # 4 niveaux de gris bien espacés
+    # if mask_indices.max() < len(color_map):
+    #     mask_normalized = color_map[mask_indices]
+    # else:
+    #     mask_normalized = (mask_indices * 255 // mask_indices.max()).astype(np.uint8)
+    
     # ajout du canal → (H, W, 1)
-    mask_uint8 = mask_uint8[..., np.newaxis]
+    mask_normalized = mask_normalized[..., np.newaxis]
     # encode en PNG
-    encoded = tf.io.encode_png(mask_uint8).numpy()
+    encoded = tf.io.encode_png(mask_normalized).numpy()
     return encoded
