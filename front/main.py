@@ -45,32 +45,44 @@ if uploaded_file is not None:
                 st.error(f"Erreur inattendue : {e}")
                 st.stop()
 
-        # 4. Affichage du mask en niveaux de gris
-        if color_mode:
-            st.subheader("Mask prédit (8 classes en couleurs)")
-        else:
-            st.subheader("Mask prédit (8 classes en niveaux de gris)")
+        # 4. Affichage de l'image originale et du masque côte à côte
+        st.subheader("Comparaison : Image originale vs Masque prédit")
         
         # Informations de débogage
         mask_array = np.array(mask_image)
         unique_values = np.unique(mask_array)
         
-        # Créer deux colonnes pour l'affichage
-        col1, col2 = st.columns([2, 1])
+        # Créer deux colonnes pour afficher l'image originale et le masque côte à côte
+        col1, col2 = st.columns(2)
         
         with col1:
-            if color_mode:
-                st.image(mask_image, use_container_width=True, clamp=True)
-            else:
-                st.image(mask_image, use_container_width=True, clamp=True, channels="L")
+            st.write("**Image originale**")
+            st.image(input_image, use_container_width=True)
         
         with col2:
+            if color_mode:
+                st.write("**Masque prédit (8 classes en couleurs)**")
+                st.image(mask_image, use_container_width=True, clamp=True)
+            else:
+                st.write("**Masque prédit (8 classes en niveaux de gris)**")
+                st.image(mask_image, use_container_width=True, clamp=True, channels="L")
+        
+        # Section d'informations détaillées
+        st.subheader("Informations détaillées du masque")
+        info_col1, info_col2 = st.columns([1, 1])
+        
+        with info_col1:
             st.write("**Informations du masque:**")
             st.write(f"📏 Dimensions: {mask_array.shape}")
             if color_mode:
                 st.write(f"🎨 Mode: Couleurs RGB")
                 st.write(f"🖼️ Classes détectées: {len(np.unique(mask_array.flatten())) if len(mask_array.shape) == 3 else len(unique_values)}")
-                
+            else:
+                st.write(f"📊 Valeurs min/max: {mask_array.min()}/{mask_array.max()}")
+                st.write(f"🎨 Classes détectées: {len(unique_values)}")
+        
+        with info_col2:
+            if color_mode:
                 # Légende des couleurs pour le mode couleur (correspondant au GROUP_PALETTE du notebook)
                 st.write("**Légende des couleurs:**")
                 color_legend = [
@@ -86,9 +98,6 @@ if uploaded_file is not None:
                 for legend in color_legend:
                     st.write(f"• {legend}")
             else:
-                st.write(f"📊 Valeurs min/max: {mask_array.min()}/{mask_array.max()}")
-                st.write(f"🎨 Classes détectées: {len(unique_values)}")
-                
                 # Afficher la légende des couleurs pour niveaux de gris
                 st.write("**Légende des niveaux de gris:**")
                 color_legend = {
