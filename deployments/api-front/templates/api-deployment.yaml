@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sentiments-api-config
+data:
+  MLFLOW_TRACKING_URI: "{{ .Values.api.mlflowTrackingUrl }}"
+  APPLICATIONINSIGHTS_CONNECTION_STRING: "{{ .Values.api.appInsightString }}"
+  SERVICE_NAME: "{{ .Values.api.serviceName }}"
+---
+# ---------------------------
+# FastAPI Deployment
+# ---------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentiments-api-deployment
+spec:
+  replicas: {{ .Values.api.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: sentiments-api
+  template:
+    metadata:
+      labels:
+        app: sentiments-api
+    spec:
+      containers:
+        - name: api
+          image: "{{ .Values.api.image }}"
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: sentiments-api-config
+      imagePullSecrets:
+        - name: dockerhub-secret
+---
+# ---------------------------
+# FastAPI Service
+# ---------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentiments-api-service
+spec:
+  selector:
+    app: sentiments-api
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

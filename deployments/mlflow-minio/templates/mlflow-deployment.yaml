@@ -1,0 +1,244 @@
+# ---------------------------
+# MLflow Deployment + Service
+# ---------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      containers:
+        - name: mlflow
+          image: {{ .Values.mlflow.image }}
+          args:
+            - --host=0.0.0.0
+            - --port=5000
+            - --backend-store-uri={{ .Values.mlflow.backendStoreUri }}
+            #- --default-artifact-root={{ .Values.mlflow.artifactRoot }}
+            - --artifacts-destination={{ .Values.mlflow.artifactRoot }}
+            - --workers=1
+          ports:
+            - containerPort: 5000
+          env:
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: http://minio-service:9000
+            - name: BACKEND_STORE_URI
+              value: {{ .Values.mlflow.backendStoreUri }}
+            - name: ARTIFACT_ROOT
+              value: {{ .Values.mlflow.artifactRoot }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: sentiments-stack-secrets
+                  key: minio_user
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sentiments-stack-secrets
+                  key: minio_password
+      imagePullSecrets:
+        - name: dockerhub-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow-service
+spec:
+  selector:
+    app: mlflow
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP
+
+# ---------------------------
+# PVC for minio
+# ---------------------------
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlflow-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: hcloud-volumes
+
+
+# ---------------------------
+# PVC for postgres
+# ---------------------------
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlflow-pg-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: hcloud-volumes
+
+# ---------------------------
+# ostgreSQL Deployment + Service
+# ---------------------------
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: mlflow-postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgresql.auth.user }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgresql.auth.password }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgresql.auth.database }}
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/mlflow_data
+              name: mlflow-pg-data
+      volumes:
+        - name: mlflow-pg-data
+          persistentVolumeClaim:
+            claimName: mlflow-pg-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow-postgres-service
+spec:
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  #type: ClusterIP
+
+# ---------------------------
+# MinIO StatefulSet + Service
+# ---------------------------
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio
+spec:
+  serviceName: "minio"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+#      initContainers:
+#        - name: create-bucket
+#          image: minio/mc:latest
+#          command:
+#            - "bash"
+#            - "-c"
+#            - |
+#              echo "🔁 Waiting for MinIO to be available..."
+#              until curl -s http://minio-service:9000/minio/health/ready; do
+#                echo "⏳ Still waiting for MinIO..."
+#                sleep 5
+#              done
+#
+#              echo "✅ MinIO is up. Creating bucket..."
+#              mc alias set minio http://minio-service:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD && \
+#              if ! mc ls minio/mlflow; then
+#                mc mb minio/bucket
+#              else
+#                echo 'bucket already exists'
+#              fi
+#          env:
+#            - name: MINIO_ROOT_USER
+#              valueFrom:
+#                secretKeyRef:
+#                  name: sentiments-stack-secrets
+#                  key: minio_user
+#            - name: MINIO_ROOT_PASSWORD
+#              valueFrom:
+#                secretKeyRef:
+#                  name: sentiments-stack-secrets
+#                  key: minio_password
+      containers:
+        - name: minio
+          image: minio/minio
+          args:
+            - server
+            - /data
+            - "--console-address"
+            - ":9001"
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: sentiments-stack-secrets
+                  key: minio_user
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sentiments-stack-secrets
+                  key: minio_password
+          ports:
+            - containerPort: 9000
+            - containerPort: 9001  # console
+          volumeMounts:
+            - name: mlflow-minio-data
+              mountPath: /data
+      volumes:
+        - name: mlflow-minio-data
+          persistentVolumeClaim:
+            claimName: mlflow-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-service
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+    - name: console
+      protocol: TCP
+      port: 9001
+      targetPort: 9001
+  type: LoadBalancer

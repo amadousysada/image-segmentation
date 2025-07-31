@@ -1,0 +1,19 @@
+api:
+  enabled: true
+  image: ${API_IMAGE}
+  mlflowTrackingUrl: ${MLFLOW_TRACKING_URI}
+  appInsightString: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+  serviceName: ${SERVICE_NAME}
+
+streamlit:
+  enabled: true
+  image: ${STREAMLIT_IMAGE}
+
+ingress:
+  enabled: true
+  className: nginx
+  proxyBodySize: 30m
+  api:
+    host: ${API_HOST}
+  streamlit:
+    host: ${STREAMLIT_HOST}

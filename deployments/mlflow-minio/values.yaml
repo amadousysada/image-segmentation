@@ -1,0 +1,24 @@
+mlflow:
+  image: ${MLFLOW_IMAGE}
+  backendStoreUri: postgresql://${MLFLOW_DB_USER}:${MLFLOW_DB_PWD}@mlflow-postgres-service:5432/${MLFLOW_DB}
+  artifactRoot: s3://mlflow/
+
+postgresql:
+  auth:
+    user: ${MLFLOW_DB_USER}
+    password: ${MLFLOW_DB_PWD}
+    database: ${MLFLOW_DB}
+  storage: 10Gi
+
+minio:
+  user: ${MINIO_USER}
+  password: ${MINIO_PWD}
+  storage: 10Gi
+
+ingress:
+  className: nginx
+  proxyBodySize: 30m
+  mlflow:
+    host: ${MLFLOW_HOST}
+  minio:
+    host: ${MINIO_HOST}

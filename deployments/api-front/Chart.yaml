@@ -1,0 +1,5 @@
+apiVersion: v2
+name: api-front
+version: 0.1.0
+description: Helm chart for deploying a full stack with API and Streamlit on Kubernetes.
+type: application
