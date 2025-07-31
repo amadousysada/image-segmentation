@@ -1,0 +1,19 @@
+services:
+  api:
+    build: ./api
+    env_file: ./api/.env
+    ports:
+      - 8000:8000
+    volumes:
+      # Monter MLflow artifacts
+      - ~/.mlflow:/root/.mlflow
+      - /tmp:/tmp
+      - ./mlruns:/app/mlruns
+    environment:
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-file:///app/mlruns}
+      - TMPDIR=/tmp
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./api/
+          target: /app/
