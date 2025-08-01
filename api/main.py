@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlparse
+
 import mlflow
-import os, tempfile
+import os, tempfile, zipfile
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from routes import router
 from settings import get_settings
 import tensorflow as tf
-
+import keras
 from utils import MeanIoUArgmax, Model
 
 # Configure logging
@@ -27,10 +29,10 @@ async def load_model():
         with tempfile.TemporaryDirectory() as temp_dir:
             model_path = client.download_artifacts(
                 conf.RUN_ID,
-                "",
+                "model",
                 dst_path=temp_dir
             )
-            keras_model_path = os.path.join(model_path, "artifacts", "mini_unet_model.keras")
+            keras_model_path = os.path.join(model_path, "data", "model.keras")
             logger.info(f"Loading model from: {keras_model_path}")
 
             # Charger le modèle avec Keras 3.x
