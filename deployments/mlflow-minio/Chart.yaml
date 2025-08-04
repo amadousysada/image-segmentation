@@ -1,5 +1,0 @@
-apiVersion: v2
-name: mlflow-minio
-version: 0.1.0
-description: Helm chart for deploying a full MLOps stack with MLflow, API, Streamlit, PostgreSQL, and MinIO on Kubernetes.
-type: application

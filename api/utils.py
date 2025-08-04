@@ -15,6 +15,40 @@ class MeanIoUArgmax(tf.keras.metrics.MeanIoU):
         return super().update_state(y_true, y_pred, sample_weight)
 
 
+def dice_loss(y_true, y_pred, smooth=1e-6):
+    """
+    Dice Loss for semantic segmentation
+
+    Args:
+        y_true: Ground truth masks (batch_size, H, W)
+        y_pred: Predicted logits (batch_size, H, W, num_classes)
+        smooth: Smoothing factor to avoid division by zero
+
+    Returns:
+        Dice loss value
+    """
+    # Convert predictions to probabilities
+    y_pred = tf.nn.softmax(y_pred, axis=-1)
+
+    # Convert ground truth to one-hot encoding
+    num_classes = tf.shape(y_pred)[-1]
+    y_true = tf.cast(y_true, tf.int32)
+    y_true_one_hot = tf.one_hot(y_true, depth=num_classes)
+
+    # Flatten tensors
+    y_true_flat = tf.reshape(y_true_one_hot, [-1, num_classes])
+    y_pred_flat = tf.reshape(y_pred, [-1, num_classes])
+
+    # Calculate Dice coefficient for each class
+    intersection = tf.reduce_sum(y_true_flat * y_pred_flat, axis=0)
+    union = tf.reduce_sum(y_true_flat, axis=0) + tf.reduce_sum(y_pred_flat, axis=0)
+
+    dice_coeff = (2. * intersection + smooth) / (union + smooth)
+
+    # Return 1 - mean Dice coefficient as loss
+    return 1 - tf.reduce_mean(dice_coeff)
+
+
 class Model:
     instance = None
     initialized = False

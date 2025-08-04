@@ -8,11 +8,12 @@ import os, tempfile, zipfile
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+
 from routes import router
 from settings import get_settings
 import tensorflow as tf
 import keras
-from utils import MeanIoUArgmax, Model
+from utils import MeanIoUArgmax, Model, dice_loss
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +37,7 @@ async def load_model():
             logger.info(f"Loading model from: {keras_model_path}")
 
             # Charger le modèle avec Keras 3.x
-            model = tf.keras.models.load_model(keras_model_path, custom_objects={"MeanIoUArgmax": MeanIoUArgmax})
+            model = tf.keras.models.load_model(keras_model_path, custom_objects={"MeanIoUArgmax": MeanIoUArgmax, "dice_loss": dice_loss})
             logger.info("Model loaded, summary :")
             model.summary()
             Model().set_model(model)
